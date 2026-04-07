@@ -77,7 +77,7 @@ class CategoryConfig {
     'xiaochi': {'bgColor': Color(0xFFFFE4EC), 'name': '小吃', 'icon': 'assets/icons/xiaochi.png'},
     'jiachang': {'bgColor': Color(0xFFE3F2FD), 'name': '家常菜', 'icon': 'assets/icons/jiachang.png'},
     'jiangpaoyancai': {'bgColor': Color(0xFFF3E5F5), 'name': '泡酱腌菜', 'icon': null},
-    'xican': {'bgColor': Color(0xFFFFF9C4), 'name': '西餐', 'icon': 'assets/icons/salad.png'},
+    'xican': {'bgColor': Color(0xFFFFF9C4), 'name': '沙拉', 'icon': 'assets/icons/salad.png'},
   };
 
   static Color getBgColor(String id) {
