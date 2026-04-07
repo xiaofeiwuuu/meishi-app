@@ -193,10 +193,9 @@ class _HomePageState extends State<HomePage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: categories.map((cat) {
                     return CategoryIcon(
-                      emoji: CategoryConfig.getEmoji(cat.id),
                       label: cat.name,
                       bgColor: CategoryConfig.getBgColor(cat.id),
-                      animalType: CategoryConfig.getAnimalType(cat.id),
+                      iconAsset: CategoryConfig.getIconAsset(cat.id),
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
