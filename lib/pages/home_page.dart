@@ -194,7 +194,6 @@ class _HomePageState extends State<HomePage> {
                   children: categories.map((cat) {
                     return CategoryIcon(
                       label: cat.name,
-                      bgColor: CategoryConfig.getBgColor(cat.id),
                       iconAsset: CategoryConfig.getIconAsset(cat.id),
                       onTap: () => Navigator.push(
                         context,

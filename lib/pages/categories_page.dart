@@ -52,7 +52,6 @@ class CategoriesPage extends StatelessWidget {
                 final cat = categories[index];
                 return CategoryIcon(
                   label: cat.name,
-                  bgColor: CategoryConfig.getBgColor(cat.id),
                   iconAsset: CategoryConfig.getIconAsset(cat.id),
                   count: cat.total,
                   onTap: () => Navigator.push(
