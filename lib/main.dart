@@ -76,9 +76,9 @@ class _MainPageState extends State<MainPage> {
   ];
 
   // Tab 配置
-  static const _tabWidth = 70.0;
-  static const _centerGap = 80.0;
-  static const _maxBarWidth = 420.0; // 最大宽度限制
+  static const _tabWidth = 56.0;
+  static const _centerGap = 70.0;
+  static const _maxBarWidth = 380.0; // 最大宽度限制
 
   void _onTabTap(int index) {
     if (index != 2) {
@@ -277,18 +277,19 @@ class _MainPageState extends State<MainPage> {
               child: Icon(
                 icon,
                 color: isSelected ? Colors.white : const Color(0xFFCDBBAF),
-                size: 22,
+                size: 20,
               ),
             ),
             const SizedBox(height: 2),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
+            Text(
+              label,
               style: TextStyle(
                 color: isSelected ? Colors.white : const Color(0xFFCDBBAF),
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
-              child: Text(label),
+              maxLines: 1,
+              overflow: TextOverflow.clip,
             ),
           ],
         ),
