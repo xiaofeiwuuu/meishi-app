@@ -39,13 +39,13 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFFF6B35),
+            seedColor: const Color(0xFFFFD93D),  // 奶黄主色
             brightness: Brightness.light,
           ),
-          scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+          scaffoldBackgroundColor: const Color(0xFFFFF8E7),  // 温暖米白背景
           appBarTheme: const AppBarTheme(
             backgroundColor: Colors.white,
-            foregroundColor: Color(0xFF1A1A1A),
+            foregroundColor: Color(0xFF5D4E37),  // 暖棕色文字
             elevation: 0,
           ),
           useMaterial3: true,
@@ -65,6 +65,7 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int _currentIndex = 0;
+  int _lastNonCenterIndex = 0; // 记录上一个非中间按钮的位置
 
   final List<Widget> _pages = [
     const HomePage(),
@@ -74,36 +75,183 @@ class _MainPageState extends State<MainPage> {
     const HistoryPage(),
   ];
 
+  // Tab 配置
+  static const _tabWidth = 70.0;
+  static const _centerGap = 80.0;
+  static const _maxBarWidth = 420.0; // 最大宽度限制
+
+  void _onTabTap(int index) {
+    if (index != 2) {
+      _lastNonCenterIndex = index;
+    }
+    setState(() => _currentIndex = index);
+  }
+
+  // 计算滑块位置
+  double _getSliderPosition(double barWidth) {
+    // 使用 _lastNonCenterIndex 保持滑块位置
+    final index = _currentIndex == 2 ? _lastNonCenterIndex : _currentIndex;
+    final leftStart = (barWidth - _tabWidth * 4 - _centerGap) / 2;
+
+    switch (index) {
+      case 0:
+        return leftStart;
+      case 1:
+        return leftStart + _tabWidth;
+      case 3:
+        return leftStart + _tabWidth * 2 + _centerGap;
+      case 4:
+        return leftStart + _tabWidth * 3 + _centerGap;
+      default:
+        return leftStart;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       body: IndexedStack(
         index: _currentIndex,
         children: _pages,
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(0, Icons.home_rounded, 'Home'),
-                _buildNavItem(1, Icons.kitchen_rounded, 'Fridge'),
-                _buildNavItem(2, Icons.restaurant_menu_rounded, 'Menu'),
-                _buildNavItem(3, Icons.favorite_rounded, 'Saved'),
-                _buildNavItem(4, Icons.history_rounded, 'History'),
-              ],
+      bottomNavigationBar: _buildBottomNavBar()
+    );
+  }
+
+  Widget _buildBottomNavBar() {
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        height: 70,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _maxBarWidth),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final barWidth = constraints.maxWidth;
+                final sliderLeft = _getSliderPosition(barWidth);
+
+                return Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    // 底部胶囊条
+                    Container(
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFFD93D).withValues(alpha: 0.25),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Stack(
+                        children: [
+                          // 滑动背景指示器
+                          AnimatedPositioned(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOutCubic,
+                            left: sliderLeft,
+                            top: 6,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: _currentIndex == 2 ? 0.0 : 1.0,
+                              child: Container(
+                                width: _tabWidth,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFD93D),
+                                  borderRadius: BorderRadius.circular(24),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFFFD93D).withValues(alpha: 0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Tab items
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildNavItem(0, Icons.home_rounded, 'Home'),
+                              _buildNavItem(1, Icons.kitchen_rounded, 'Fridge'),
+                              SizedBox(width: _centerGap),
+                              _buildNavItem(3, Icons.favorite_rounded, 'Saved'),
+                              _buildNavItem(4, Icons.history_rounded, 'History'),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    // 中间突出的圆形按钮
+                    Positioned(
+                      top: -15,
+                      child: GestureDetector(
+                        onTap: () => _onTabTap(2),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOutBack,
+                          width: _currentIndex == 2 ? 68 : 62,
+                          height: _currentIndex == 2 ? 68 : 62,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: _currentIndex == 2
+                                ? [const Color(0xFFFFD93D), const Color(0xFFFFD93D)]
+                                : [const Color(0xFFFFF0C8), const Color(0xFFFFE4A0)],
+                            ),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFFD93D).withValues(alpha: _currentIndex == 2 ? 0.5 : 0.3),
+                                blurRadius: _currentIndex == 2 ? 16 : 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              AnimatedScale(
+                                scale: _currentIndex == 2 ? 1.1 : 1.0,
+                                duration: const Duration(milliseconds: 200),
+                                child: Icon(
+                                  Icons.restaurant_menu_rounded,
+                                  color: _currentIndex == 2
+                                    ? const Color(0xFF5D4E37)
+                                    : const Color(0xFF9E8E7E),
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Menu',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                  color: _currentIndex == 2
+                                    ? const Color(0xFF5D4E37)
+                                    : const Color(0xFF9E8E7E),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -113,25 +261,34 @@ class _MainPageState extends State<MainPage> {
 
   Widget _buildNavItem(int index, IconData icon, String label) {
     final isSelected = _currentIndex == index;
-    final color = isSelected ? const Color(0xFFFF6B35) : const Color(0xFF999999);
 
     return GestureDetector(
-      onTap: () => setState(() => _currentIndex = index),
+      onTap: () => _onTabTap(index),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 60,
+        width: _tabWidth,
+        height: 60,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color, size: 26),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            AnimatedScale(
+              scale: isSelected ? 1.1 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                icon,
+                color: isSelected ? Colors.white : const Color(0xFFCDBBAF),
+                size: 22,
               ),
+            ),
+            const SizedBox(height: 2),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFFCDBBAF),
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              ),
+              child: Text(label),
             ),
           ],
         ),

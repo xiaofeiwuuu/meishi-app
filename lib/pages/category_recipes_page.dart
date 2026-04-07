@@ -7,6 +7,7 @@ import '../stores/menu_store.dart';
 import '../models/recipe.dart';
 import 'recipe_detail_page.dart';
 import '../utils/responsive.dart';
+import '../widgets/background_decorations.dart';
 
 class CategoryRecipesPage extends StatefulWidget {
   final String categoryId;
@@ -137,10 +138,12 @@ class _CategoryRecipesPageState extends State<CategoryRecipesPage> {
         ),
         centerTitle: true,
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            )
+      body: BackgroundDecorations(
+        variant: 3,
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )
           : _recipes.isEmpty
               ? const Center(
                   child: Text(
@@ -193,6 +196,7 @@ class _CategoryRecipesPageState extends State<CategoryRecipesPage> {
                     },
                   ),
                 ),
+      ),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../theme/colors.dart';
+import '../widgets/background_decorations.dart';
 import 'fridge_result_page.dart';
 
 class IngredientCategory {
@@ -56,6 +57,54 @@ class _FridgePageState extends State<FridgePage> {
         return Icons.inventory_2;
       default:
         return Icons.category;
+    }
+  }
+
+  // 分类柔和颜色映射
+  Color _getCategoryColor(String name) {
+    switch (name) {
+      case '蔬菜':
+        return const Color(0xFFE8F5E9);  // 浅绿
+      case '菌菇':
+        return const Color(0xFFF5F0E6);  // 浅米
+      case '肉类':
+        return const Color(0xFFFFEBEE);  // 浅粉红
+      case '水产':
+        return const Color(0xFFE3F2FD);  // 浅蓝
+      case '蛋奶豆':
+        return const Color(0xFFFFF8E1);  // 浅黄
+      case '调味料':
+        return const Color(0xFFFFF3E0);  // 浅橙
+      case '主食':
+        return const Color(0xFFFCE4EC);  // 浅桃
+      case '干货':
+        return const Color(0xFFF3E5F5);  // 浅紫
+      default:
+        return const Color(0xFFFAFAFA);
+    }
+  }
+
+  // 分类图标颜色
+  Color _getCategoryIconColor(String name) {
+    switch (name) {
+      case '蔬菜':
+        return const Color(0xFF66BB6A);  // 绿
+      case '菌菇':
+        return const Color(0xFFA1887F);  // 棕
+      case '肉类':
+        return const Color(0xFFEF5350);  // 红
+      case '水产':
+        return const Color(0xFF42A5F5);  // 蓝
+      case '蛋奶豆':
+        return const Color(0xFFFFCA28);  // 黄
+      case '调味料':
+        return const Color(0xFFFF9800);  // 橙
+      case '主食':
+        return const Color(0xFFEC407A);  // 桃红
+      case '干货':
+        return const Color(0xFFAB47BC);  // 紫
+      default:
+        return AppColors.primary;
     }
   }
 
@@ -128,6 +177,16 @@ class _FridgePageState extends State<FridgePage> {
     });
   }
 
+  // 查找食材所属分类
+  String _getCategoryForIngredient(String ingredientName) {
+    for (final category in _categories) {
+      if (category.items.contains(ingredientName)) {
+        return category.name;
+      }
+    }
+    return '';  // 未找到分类（可能是搜索添加的）
+  }
+
   // 搜索过滤 - 从所有食材中搜索
   List<String> _getFilteredIngredients() {
     final query = _controller.text.trim().toLowerCase();
@@ -195,8 +254,11 @@ class _FridgePageState extends State<FridgePage> {
               ),
             )
           : null,
-      body: SafeArea(
-        child: Column(
+      body: BackgroundDecorations(
+        variant: 2,
+        hasTabBar: true,
+        child: SafeArea(
+          child: Column(
           children: [
             // Header
             Container(
@@ -205,26 +267,14 @@ class _FridgePageState extends State<FridgePage> {
                 children: [
                   // Nav Bar
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        const Expanded(
-                          child: Text(
-                            '冰箱找菜',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 48),
-                      ],
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                    child: Text(
+                      '冰箱找菜 🐰',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
 
@@ -310,28 +360,35 @@ class _FridgePageState extends State<FridgePage> {
                       spacing: 8,
                       runSpacing: 8,
                       children: _selectedIngredients.map((name) {
+                        final categoryName = _getCategoryForIngredient(name);
+                        final bgColor = _getCategoryColor(categoryName);
+                        final textColor = _getCategoryIconColor(categoryName);
                         return GestureDetector(
                           onTap: () => _toggleIngredient(name),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFF0EB),
+                              color: bgColor,
                               borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: textColor.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
                                   name,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 13,
-                                    color: AppColors.primary,
+                                    color: textColor,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                                 const SizedBox(width: 4),
-                                const Icon(Icons.close,
-                                    size: 14, color: AppColors.primary),
+                                Icon(Icons.close,
+                                    size: 14, color: textColor),
                               ],
                             ),
                           ),
@@ -353,6 +410,7 @@ class _FridgePageState extends State<FridgePage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -425,29 +483,40 @@ class _FridgePageState extends State<FridgePage> {
 
   // 分类区块
   Widget _buildCategorySection(IngredientCategory category) {
+    final categoryColor = _getCategoryColor(category.name);
+    final iconColor = _getCategoryIconColor(category.name);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 分类标题
-          Row(
-            children: [
-              Icon(
-                _getCategoryIcon(category.name),
-                size: 18,
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                category.name,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+          // 分类标题 - 胶囊样式
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: categoryColor,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _getCategoryIcon(category.name),
+                  size: 16,
+                  color: iconColor,
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  category.name,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: iconColor,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           // 食材列表
@@ -461,10 +530,10 @@ class _FridgePageState extends State<FridgePage> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFFFF0EB) : Colors.white,
-                    borderRadius: BorderRadius.circular(10),
+                    color: isSelected ? categoryColor : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
                     border: isSelected
-                        ? Border.all(color: AppColors.primary.withValues(alpha: 0.3))
+                        ? Border.all(color: iconColor.withValues(alpha: 0.4))
                         : null,
                     boxShadow: isSelected
                         ? null
@@ -479,7 +548,7 @@ class _FridgePageState extends State<FridgePage> {
                     name,
                     style: TextStyle(
                       fontSize: 13,
-                      color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                      color: isSelected ? iconColor : AppColors.textPrimary,
                     ),
                   ),
                 ),

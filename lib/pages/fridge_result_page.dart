@@ -60,10 +60,37 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
   static Map<String, List<String>>? _ingredientIndex;
   static Map<String, RecipeSummary>? _recipeSummaries;
 
+  // 滚动控制
+  final ScrollController _scrollController = ScrollController();
+  bool _showBackToTop = false;
+
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _loadAndSearch();
+  }
+
+  void _onScroll() {
+    final show = _scrollController.offset > 300;
+    if (show != _showBackToTop) {
+      setState(() => _showBackToTop = show);
+    }
+  }
+
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAndSearch() async {
@@ -407,6 +434,7 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
                             ),
                           )
                         : GridView.builder(
+                            controller: _scrollController,
                             padding: const EdgeInsets.all(20),
                             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: Responsive.getGridColumns(context),
@@ -439,6 +467,15 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
           ),
         ],
       ),
+      // 回到顶部按钮
+      floatingActionButton: _showBackToTop
+          ? FloatingActionButton(
+              mini: true,
+              backgroundColor: AppColors.primary,
+              onPressed: _scrollToTop,
+              child: const Icon(Icons.arrow_upward, color: Colors.white),
+            )
+          : null,
     );
   }
 }

@@ -9,6 +9,7 @@ import '../stores/menu_store.dart';
 import '../stores/favorite_store.dart';
 import '../stores/share_history_store.dart';
 import '../models/recipe.dart';
+import '../widgets/background_decorations.dart';
 import 'recipe_detail_page.dart';
 
 class HistoryPage extends StatefulWidget {
@@ -132,10 +133,13 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
+      body: BackgroundDecorations(
+        variant: 7,
+        hasTabBar: true,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
               child: Row(
@@ -217,6 +221,7 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -250,17 +255,234 @@ class _RankingList extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
+    // 前三名用奖台样式
+    final hasTop3 = topShared.length >= 3;
+    final restItems = hasTop3 ? topShared.skip(3).toList() : topShared;
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
-      itemCount: topShared.length,
-      itemBuilder: (context, index) {
-        final item = topShared[index];
-        return _RankingCard(
-          rank: index + 1,
-          recipeId: item.recipeId,
-          shareCount: item.shareCount,
-        );
-      },
+      child: Column(
+        children: [
+          // 奖台
+          if (hasTop3) ...[
+            _PodiumWidget(
+              first: topShared[0],
+              second: topShared[1],
+              third: topShared[2],
+            ),
+            const SizedBox(height: 24),
+          ],
+          // 其余排名
+          ...restItems.asMap().entries.map((entry) {
+            final index = hasTop3 ? entry.key + 3 : entry.key;
+            final item = entry.value;
+            return _RankingCard(
+              rank: index + 1,
+              recipeId: item.recipeId,
+              shareCount: item.shareCount,
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// 奖台组件
+class _PodiumWidget extends StatelessWidget {
+  final ShareCountItem first;
+  final ShareCountItem second;
+  final ShareCountItem third;
+
+  const _PodiumWidget({
+    required this.first,
+    required this.second,
+    required this.third,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 280,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // 第二名 - 左边
+          Expanded(
+            child: _PodiumItem(
+              rank: 2,
+              item: second,
+              height: 100,
+              color: const Color(0xFFC0C0C0), // 银色
+            ),
+          ),
+          const SizedBox(width: 8),
+          // 第一名 - 中间
+          Expanded(
+            child: _PodiumItem(
+              rank: 1,
+              item: first,
+              height: 130,
+              color: const Color(0xFFFFD700), // 金色
+            ),
+          ),
+          const SizedBox(width: 8),
+          // 第三名 - 右边
+          Expanded(
+            child: _PodiumItem(
+              rank: 3,
+              item: third,
+              height: 70,
+              color: const Color(0xFFCD7F32), // 铜色
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 奖台单项
+class _PodiumItem extends StatefulWidget {
+  final int rank;
+  final ShareCountItem item;
+  final double height;
+  final Color color;
+
+  const _PodiumItem({
+    required this.rank,
+    required this.item,
+    required this.height,
+    required this.color,
+  });
+
+  @override
+  State<_PodiumItem> createState() => _PodiumItemState();
+}
+
+class _PodiumItemState extends State<_PodiumItem> {
+  Recipe? _recipe;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecipe();
+  }
+
+  Future<void> _loadRecipe() async {
+    final service = context.read<RecipeService>();
+    final recipe = await service.getRecipe(widget.item.recipeId);
+    if (mounted) {
+      setState(() => _recipe = recipe);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RecipeDetailPage(recipeId: widget.item.recipeId),
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // 头像/图片
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: widget.color, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.color.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: ClipOval(
+              child: _recipe?.coverUrl.isNotEmpty == true
+                  ? CachedNetworkImage(
+                      imageUrl: _recipe!.coverUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(color: Colors.grey[200]),
+                      errorWidget: (_, __, ___) => Container(
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.restaurant, size: 24),
+                      ),
+                    )
+                  : Container(
+                      color: Colors.grey[200],
+                      child: const Icon(Icons.restaurant, size: 24),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // 菜名
+          Text(
+            _recipe?.name ?? '加载中...',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          // 分享次数
+          Text(
+            '${widget.item.shareCount}次',
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // 奖台
+          Container(
+            width: double.infinity,
+            height: widget.height,
+            decoration: BoxDecoration(
+              color: widget.color,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.color.withValues(alpha: 0.4),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 奖杯图标
+                Icon(
+                  Icons.emoji_events,
+                  color: Colors.white.withValues(alpha: 0.9),
+                  size: widget.rank == 1 ? 32 : 24,
+                ),
+                const SizedBox(height: 4),
+                // 排名数字
+                Text(
+                  '${widget.rank}',
+                  style: TextStyle(
+                    fontSize: widget.rank == 1 ? 28 : 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

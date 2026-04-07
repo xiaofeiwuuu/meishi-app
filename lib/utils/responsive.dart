@@ -20,4 +20,12 @@ class Responsive {
     if (columns >= 3) return 0.78;
     return 0.75;
   }
+
+  /// 根据列数计算需要的数据量（保持 2 行整齐）
+  /// - 2列 → 4个
+  /// - 3列 → 6个
+  /// - 4列 → 8个
+  static int getItemCount(BuildContext context, {int rows = 2}) {
+    return getGridColumns(context) * rows;
+  }
 }

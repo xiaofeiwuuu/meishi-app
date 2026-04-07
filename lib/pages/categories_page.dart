@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../theme/colors.dart';
 import '../services/recipe_service.dart';
 import '../widgets/category_icon.dart';
+import '../widgets/background_decorations.dart';
 import 'category_recipes_page.dart';
 
 class CategoriesPage extends StatelessWidget {
@@ -32,11 +33,13 @@ class CategoriesPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      body: categories.isEmpty
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            )
-          : GridView.builder(
+      body: BackgroundDecorations(
+        variant: 3,
+        child: categories.isEmpty
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )
+            : GridView.builder(
               padding: const EdgeInsets.all(20),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 4,
@@ -51,6 +54,7 @@ class CategoriesPage extends StatelessWidget {
                   emoji: CategoryConfig.getEmoji(cat.id),
                   label: cat.name,
                   bgColor: CategoryConfig.getBgColor(cat.id),
+                  animalType: CategoryConfig.getAnimalType(cat.id),
                   count: cat.total,
                   onTap: () => Navigator.push(
                     context,
@@ -64,6 +68,7 @@ class CategoriesPage extends StatelessWidget {
                 );
               },
             ),
+      ),
     );
   }
 }

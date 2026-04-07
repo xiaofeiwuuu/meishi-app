@@ -8,6 +8,7 @@ import '../models/recipe.dart';
 import 'recipe_detail_page.dart';
 import 'share_menu_page.dart';
 import 'scan_page.dart';
+import '../widgets/background_decorations.dart';
 
 class MenuPage extends StatelessWidget {
   const MenuPage({super.key});
@@ -19,8 +20,11 @@ class MenuPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
+      body: BackgroundDecorations(
+        variant: 6,
+        hasTabBar: true,
+        child: SafeArea(
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
@@ -146,20 +150,51 @@ class MenuPage extends StatelessWidget {
                         ],
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                      itemCount: menuIds.length,
-                      itemBuilder: (context, index) {
-                        final recipeId = menuIds[index];
-                        return _MenuRecipeCard(
-                          recipeId: recipeId,
-                          onRemove: () => menuStore.remove(recipeId),
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        // 根据宽度决定列数
+                        final width = constraints.maxWidth;
+                        final columns = width > 900 ? 3 : (width > 600 ? 2 : 1);
+
+                        if (columns == 1) {
+                          // 手机：单列列表
+                          return ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                            itemCount: menuIds.length,
+                            itemBuilder: (context, index) {
+                              final recipeId = menuIds[index];
+                              return _MenuRecipeCard(
+                                recipeId: recipeId,
+                                onRemove: () => menuStore.remove(recipeId),
+                              );
+                            },
+                          );
+                        }
+
+                        // 平板：多列网格
+                        return GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: columns,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 0,
+                            childAspectRatio: columns == 2 ? 1.6 : 1.8,
+                          ),
+                          itemCount: menuIds.length,
+                          itemBuilder: (context, index) {
+                            final recipeId = menuIds[index];
+                            return _MenuRecipeCard(
+                              recipeId: recipeId,
+                              onRemove: () => menuStore.remove(recipeId),
+                            );
+                          },
                         );
                       },
                     ),
             ),
           ],
         ),
+      ),
       ),
     );
   }

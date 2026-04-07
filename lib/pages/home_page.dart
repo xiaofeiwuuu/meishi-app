@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/colors.dart';
@@ -11,6 +12,7 @@ import 'search_page.dart';
 import 'categories_page.dart';
 import 'category_recipes_page.dart';
 import '../utils/responsive.dart';
+import '../widgets/background_decorations.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -22,6 +24,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   List<RecipeSummary> _popularRecipes = [];
   bool _isLoading = true;
+  int _lastLoadedCount = 0;  // 记录上次加载的数量
 
   @override
   void initState() {
@@ -30,15 +33,17 @@ class _HomePageState extends State<HomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadData({int? count}) async {
     final service = context.read<RecipeService>();
     // 强制刷新获取最新数据
     await service.loadCategories(forceRefresh: true);
-    final recipes = await service.getRandomRecipes(limit: 4);
+    final limit = count ?? Responsive.getItemCount(context);
+    final recipes = await service.getRandomRecipes(limit: limit);
     if (mounted) {
       setState(() {
         _popularRecipes = recipes;
         _isLoading = false;
+        _lastLoadedCount = limit;
       });
     }
   }
@@ -46,25 +51,42 @@ class _HomePageState extends State<HomePage> {
   Future<void> _shuffleRecipes() async {
     setState(() => _isLoading = true);
     final service = context.read<RecipeService>();
-    final recipes = await service.getRandomRecipes(limit: 4);
+    final limit = Responsive.getItemCount(context);
+    final recipes = await service.getRandomRecipes(limit: limit);
     if (mounted) {
       setState(() {
         _popularRecipes = recipes;
         _isLoading = false;
+        _lastLoadedCount = limit;
       });
+    }
+  }
+
+  void _checkAndReloadIfNeeded() {
+    final needed = Responsive.getItemCount(context);
+    // 如果需要的数量比已加载的多，重新加载
+    if (needed > _lastLoadedCount && !_isLoading) {
+      _loadData(count: needed);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // 检查是否需要根据屏幕尺寸重新加载数据
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAndReloadIfNeeded());
+
     final service = context.watch<RecipeService>();
     final menuStore = context.watch<MenuStore>();
     final categories = service.categories.take(4).toList();
+    final itemCount = Responsive.getItemCount(context);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
+      body: BackgroundDecorations(
+        variant: 1,
+        hasTabBar: true,
+        child: SafeArea(
+          child: SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 100),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,7 +98,7 @@ class _HomePageState extends State<HomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: const [
                     Text(
-                      'Hey, Foodie! 🍳',
+                      '今天吃什么呀～ 🐱',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -85,7 +107,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      "What's cooking today?",
+                      "一起来发现好吃的吧！🌸",
                       style: TextStyle(
                         fontSize: 14,
                         color: AppColors.textMuted,
@@ -164,7 +186,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
 
-              // Category Icons
+              // Category Icons - 使用自定义动物图标
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -174,6 +196,7 @@ class _HomePageState extends State<HomePage> {
                       emoji: CategoryConfig.getEmoji(cat.id),
                       label: cat.name,
                       bgColor: CategoryConfig.getBgColor(cat.id),
+                      animalType: CategoryConfig.getAnimalType(cat.id),
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -244,7 +267,7 @@ class _HomePageState extends State<HomePage> {
                       mainAxisSpacing: 14,
                       childAspectRatio: Responsive.getCardAspectRatio(context),
                     ),
-                    itemCount: _popularRecipes.length,
+                    itemCount: min(_popularRecipes.length, itemCount),
                     itemBuilder: (context, index) {
                       final recipe = _popularRecipes[index];
                       return FoodCard(
@@ -267,6 +290,7 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
