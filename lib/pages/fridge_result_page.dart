@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../config.dart';
 import '../theme/colors.dart';
 import '../widgets/food_card.dart';
 import '../stores/menu_store.dart';
@@ -12,25 +13,19 @@ class RecipeSummary {
   final String name;
   final String cover;
   final String cat;
-  final String catName;
+  final int haveCount; // 你已有的主料数
+  final int needCount; // 这道菜共需的主料数
+  final List<String> missing; // 缺的料
 
   RecipeSummary({
     required this.id,
     required this.name,
     required this.cover,
     required this.cat,
-    required this.catName,
+    this.haveCount = 0,
+    this.needCount = 0,
+    this.missing = const [],
   });
-
-  factory RecipeSummary.fromJson(Map<String, dynamic> json) {
-    return RecipeSummary(
-      id: json['id'] ?? '',
-      name: json['name'] ?? '',
-      cover: json['cover'] ?? '',
-      cat: json['cat'] ?? '',
-      catName: json['catName'] ?? '',
-    );
-  }
 }
 
 class FridgeResultPage extends StatefulWidget {
@@ -43,13 +38,11 @@ class FridgeResultPage extends StatefulWidget {
 }
 
 class _FridgeResultPageState extends State<FridgeResultPage> {
-  static const String _baseUrl = 'https://cdn.jsdelivr.net/gh/xiaofeiwuuu/recipe@main';
-
   bool _isLoading = true;
   String? _error;
   List<RecipeSummary> _allResults = []; // 所有匹配结果
   List<RecipeSummary> _filteredResults = []; // 筛选后的结果
-  bool _matchAll = false;
+  bool _onlyComplete = false; // 只看能做全的
   String _selectedCategory = ''; // 空字符串表示全部
 
   // 可用的分类（从结果中提取）
@@ -97,7 +90,7 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
     try {
       final data = await ApiClient.instance.post('/app/fridge/match', data: {
         'ingredients': widget.ingredients,
-        'mode': _matchAll ? 'all' : 'any',
+        'onlyComplete': _onlyComplete,
         'pageSize': 50,
       });
       final items = (data['items'] as List?) ?? [];
@@ -107,7 +100,9 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
                 name: e['name'] ?? '',
                 cover: e['cover'] ?? '',
                 cat: e['categoryId'] ?? '',
-                catName: e['categoryId'] ?? '',
+                haveCount: (e['haveCount'] ?? 0) as int,
+                needCount: (e['needCount'] ?? 0) as int,
+                missing: ((e['missing'] as List?) ?? []).map((x) => x.toString()).toList(),
               ))
           .toList();
 
@@ -165,12 +160,12 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
     });
   }
 
-  void _toggleMatchMode() {
+  void _toggleOnlyComplete() {
     setState(() {
-      _matchAll = !_matchAll;
+      _onlyComplete = !_onlyComplete;
       _selectedCategory = '';
     });
-    _loadAndSearch(); // 切换模式需重新向服务端查询
+    _loadAndSearch(); // 切换筛选需重新向服务端查询
   }
 
   void _selectCategory(String cat) {
@@ -245,19 +240,30 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
                     ),
                     const Spacer(),
                     GestureDetector(
-                      onTap: _toggleMatchMode,
+                      onTap: _toggleOnlyComplete,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _matchAll ? AppColors.primary : AppColors.background,
+                          color: _onlyComplete ? AppColors.primary : AppColors.background,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          _matchAll ? '全部匹配' : '任一匹配',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _matchAll ? Colors.white : AppColors.textSecondary,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _onlyComplete ? Icons.check_circle : Icons.check_circle_outline,
+                              size: 13,
+                              color: _onlyComplete ? Colors.white : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '只看能做全的',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _onlyComplete ? Colors.white : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -362,16 +368,16 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
                               children: [
                                 Icon(Icons.restaurant_menu, size: 48, color: Colors.grey[300]),
                                 const SizedBox(height: 12),
-                                const Text(
-                                  '没有找到匹配的菜谱',
-                                  style: TextStyle(color: AppColors.textMuted),
+                                Text(
+                                  _onlyComplete ? '没有能完全做出的菜谱' : '没有找到匹配的菜谱',
+                                  style: const TextStyle(color: AppColors.textMuted),
                                 ),
-                                if (_matchAll && widget.ingredients.length > 1) ...[
+                                if (_onlyComplete) ...[
                                   const SizedBox(height: 8),
                                   GestureDetector(
-                                    onTap: _toggleMatchMode,
+                                    onTap: _toggleOnlyComplete,
                                     child: const Text(
-                                      '试试「任一匹配」模式',
+                                      '看看「还差几样」的菜谱',
                                       style: TextStyle(color: AppColors.primary),
                                     ),
                                   ),
@@ -391,22 +397,56 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
                             itemCount: _filteredResults.length,
                             itemBuilder: (context, index) {
                               final recipe = _filteredResults[index];
-                              final coverUrl = recipe.cover.isNotEmpty
-                                  ? '$_baseUrl/${recipe.cover}'
-                                  : '';
-                              return FoodCard(
-                                id: recipe.id,
-                                imageUrl: coverUrl,
-                                title: recipe.name,
-                                time: '',
-                                isAdded: menuStore.isInMenu(recipe.id),
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => RecipeDetailPage(recipeId: recipe.id),
+                              final complete = recipe.missing.isEmpty;
+                              final label = complete
+                                  ? '食材齐 ✓'
+                                  : (recipe.missing.length <= 2
+                                      ? '缺:${recipe.missing.join("、")}'
+                                      : '还差${recipe.missing.length}样');
+                              return Stack(
+                                children: [
+                                  FoodCard(
+                                    id: recipe.id,
+                                    imageUrl: AppConfig.coverUrl(recipe.cover),
+                                    title: recipe.name,
+                                    time: '',
+                                    isAdded: menuStore.isInMenu(recipe.id),
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => RecipeDetailPage(recipeId: recipe.id),
+                                      ),
+                                    ),
+                                    onAddTap: () => menuStore.toggle(recipe.id),
                                   ),
-                                ),
-                                onAddTap: () => menuStore.toggle(recipe.id),
+                                  Positioned(
+                                    top: 8,
+                                    left: 8,
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(maxWidth: 150),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: complete
+                                              ? const Color(0xFF66BB6A)
+                                              : const Color(0xFFFF9800),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          label,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               );
                             },
                           ),

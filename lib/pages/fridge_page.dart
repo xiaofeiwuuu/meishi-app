@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/colors.dart';
 import '../widgets/background_decorations.dart';
 import '../services/api_client.dart';
@@ -109,6 +110,27 @@ class _FridgePageState extends State<FridgePage> {
   void initState() {
     super.initState();
     _loadIngredients();
+    _loadFridge();
+  }
+
+  // "我的冰箱":本地记住上次选的食材,下次进来自动带上
+  static const _fridgeKey = 'my_fridge';
+
+  Future<void> _loadFridge() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_fridgeKey) ?? [];
+    if (saved.isNotEmpty && mounted) {
+      setState(() {
+        for (final s in saved) {
+          if (!_selectedIngredients.contains(s)) _selectedIngredients.add(s);
+        }
+      });
+    }
+  }
+
+  Future<void> _saveFridge() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_fridgeKey, _selectedIngredients);
   }
 
   Future<void> _loadIngredients() async {
@@ -157,6 +179,7 @@ class _FridgePageState extends State<FridgePage> {
       }
       _controller.clear();
     });
+    _saveFridge(); // 记住"我的冰箱"
   }
 
   // 查找食材所属分类
@@ -326,7 +349,10 @@ class _FridgePageState extends State<FridgePage> {
                           ),
                         ),
                         GestureDetector(
-                          onTap: () => setState(() => _selectedIngredients.clear()),
+                          onTap: () {
+                            setState(() => _selectedIngredients.clear());
+                            _saveFridge();
+                          },
                           child: const Text(
                             '清空',
                             style: TextStyle(
