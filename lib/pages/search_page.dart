@@ -5,6 +5,7 @@ import '../theme/colors.dart';
 import '../widgets/food_card.dart';
 import '../models/recipe.dart';
 import '../services/recipe_service.dart';
+import '../services/search_history.dart';
 import '../stores/menu_store.dart';
 import '../utils/responsive.dart';
 import 'recipe_detail_page.dart';
@@ -22,6 +23,7 @@ class _SearchPageState extends State<SearchPage> {
   Timer? _debounce;
 
   List<RecipeSummary> _results = [];
+  List<String> _history = [];
   bool _searching = false;
   bool _showBackToTop = false;
   String _lastQuery = '';
@@ -33,7 +35,36 @@ class _SearchPageState extends State<SearchPage> {
       final show = _scrollController.offset > 300;
       if (show != _showBackToTop) setState(() => _showBackToTop = show);
     });
+    SearchHistory.load().then((list) {
+      if (mounted) setState(() => _history = list);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+  }
+
+  // 缓存一条搜索词
+  Future<void> _saveHistory(String q) async {
+    if (q.trim().isEmpty) return;
+    final list = await SearchHistory.add(q);
+    if (mounted) setState(() => _history = list);
+  }
+
+  // 点历史标签:回填并搜索
+  void _applyHistory(String q) {
+    _controller.text = q;
+    _controller.selection = TextSelection.collapsed(offset: q.length);
+    _debounce?.cancel();
+    _search(q);
+    _saveHistory(q); // 提到最前
+  }
+
+  Future<void> _removeHistory(String q) async {
+    final list = await SearchHistory.remove(q);
+    if (mounted) setState(() => _history = list);
+  }
+
+  Future<void> _clearHistory() async {
+    await SearchHistory.clear();
+    if (mounted) setState(() => _history = []);
   }
 
   @override
@@ -57,6 +88,7 @@ class _SearchPageState extends State<SearchPage> {
       setState(() {
         _results = [];
         _searching = false;
+        _showBackToTop = false; // 列表空了,回到顶部按钮也要收起
       });
       return;
     }
@@ -91,7 +123,10 @@ class _SearchPageState extends State<SearchPage> {
           ),
           style: const TextStyle(fontSize: 16, color: AppColors.textPrimary),
           onChanged: _onChanged,
-          onSubmitted: _search,
+          onSubmitted: (q) {
+            _search(q);
+            _saveHistory(q);
+          },
         ),
         actions: [
           if (_controller.text.isNotEmpty)
@@ -105,7 +140,7 @@ class _SearchPageState extends State<SearchPage> {
         ],
       ),
       body: _buildBody(menuStore),
-      floatingActionButton: _showBackToTop
+      floatingActionButton: (_showBackToTop && _results.isNotEmpty)
           ? FloatingActionButton(
               mini: true,
               backgroundColor: AppColors.primary,
@@ -119,7 +154,7 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _buildBody(MenuStore menuStore) {
     if (_controller.text.trim().isEmpty) {
-      return _hint(Icons.search, '输入关键词搜索菜谱');
+      return _buildEmptyState();
     }
     if (_searching) {
       return const Center(child: CircularProgressIndicator(color: AppColors.primary));
@@ -155,16 +190,90 @@ class _SearchPageState extends State<SearchPage> {
                 title: r.name,
                 time: '',
                 isAdded: menuStore.isInMenu(r.id),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => RecipeDetailPage(recipeId: r.id)),
-                ),
+                onTap: () {
+                  _saveHistory(_lastQuery); // 点开结果=有效搜索,缓存词条
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => RecipeDetailPage(recipeId: r.id)),
+                  );
+                },
                 onAddTap: () => menuStore.toggle(r.id),
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    if (_history.isEmpty) {
+      return _hint(Icons.search, '输入关键词搜索菜谱');
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('最近搜索',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary)),
+              GestureDetector(
+                onTap: _clearHistory,
+                behavior: HitTestBehavior.opaque,
+                child: const Row(
+                  children: [
+                    Icon(Icons.delete_outline, size: 16, color: AppColors.textMuted),
+                    SizedBox(width: 2),
+                    Text('清空',
+                        style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: _history.map(_historyChip).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _historyChip(String kw) {
+    return GestureDetector(
+      onTap: () => _applyHistory(kw),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(kw,
+                style: const TextStyle(fontSize: 14, color: AppColors.textPrimary)),
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: () => _removeHistory(kw),
+              behavior: HitTestBehavior.opaque,
+              child: const Icon(Icons.close, size: 15, color: AppColors.textMuted),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
