@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/colors.dart';
@@ -30,7 +31,9 @@ class _FridgePageState extends State<FridgePage> {
   final TextEditingController _controller = TextEditingController();
   final List<String> _selectedIngredients = [];
   List<IngredientCategory> _categories = [];
-  List<String> _allIngredients = []; // 所有可搜索的食材
+  List<String> _searchResults = []; // 后端搜索结果(搜真实菜谱主料)
+  Timer? _searchDebounce;
+  bool _searchLoading = false;
   bool _isLoading = true;
   String? _error;
 
@@ -143,12 +146,10 @@ class _FridgePageState extends State<FridgePage> {
                 items: List<String>.from(c['items'] ?? []),
               ))
           .toList();
-      final allIngredients = categories.expand((c) => c.items).toList();
 
       if (mounted) {
         setState(() {
           _categories = categories;
-          _allIngredients = allIngredients;
           _isLoading = false;
           _error = null;
         });
@@ -166,6 +167,7 @@ class _FridgePageState extends State<FridgePage> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -192,19 +194,36 @@ class _FridgePageState extends State<FridgePage> {
     return '';  // 未找到分类（可能是搜索添加的）
   }
 
-  // 搜索过滤 - 从所有食材中搜索
+  // 搜索结果(来自后端搜真实菜谱主料),去掉已选的
   List<String> _getFilteredIngredients() {
-    final query = _controller.text.trim().toLowerCase();
-    if (query.isEmpty) return [];
+    return _searchResults
+        .where((item) => !_selectedIngredients.contains(item))
+        .toList();
+  }
 
-    final results = <String>[];
-    for (final item in _allIngredients) {
-      if (item.toLowerCase().contains(query) &&
-          !_selectedIngredients.contains(item)) {
-        results.add(item);
-      }
+  // 调后端 /app/ingredients?keyword= 搜真实菜谱主料(白菜等精选表没有的也能搜到)
+  Future<void> _searchIngredients(String q) async {
+    final query = q.trim();
+    if (query.isEmpty) {
+      if (mounted) setState(() {
+        _searchResults = [];
+        _searchLoading = false;
+      });
+      return;
     }
-    return results.take(30).toList(); // 增加到30个结果
+    if (mounted) setState(() => _searchLoading = true);
+    try {
+      final data = await ApiClient.instance
+          .get('/app/ingredients', query: {'keyword': query});
+      if (!mounted || _controller.text.trim() != query) return; // 被新输入覆盖
+      setState(() {
+        _searchResults = List<String>.from(data ?? []);
+        _searchLoading = false;
+      });
+    } catch (e) {
+      debugPrint('搜索食材失败: $e');
+      if (mounted) setState(() => _searchLoading = false);
+    }
   }
 
   @override
@@ -309,6 +328,11 @@ class _FridgePageState extends State<FridgePage> {
                               style: const TextStyle(fontSize: 15),
                               onChanged: (value) {
                                 setState(() {});
+                                _searchDebounce?.cancel();
+                                _searchDebounce = Timer(
+                                  const Duration(milliseconds: 300),
+                                  () => _searchIngredients(value),
+                                );
                               },
                             ),
                           ),
@@ -316,7 +340,11 @@ class _FridgePageState extends State<FridgePage> {
                             GestureDetector(
                               onTap: () {
                                 _controller.clear();
-                                setState(() {});
+                                _searchDebounce?.cancel();
+                                setState(() {
+                                  _searchResults = [];
+                                  _searchLoading = false;
+                                });
                               },
                               child: const Icon(Icons.clear,
                                   color: AppColors.textMuted, size: 18),
@@ -425,6 +453,11 @@ class _FridgePageState extends State<FridgePage> {
 
   // 搜索结果
   Widget _buildSearchResults(List<String> results) {
+    if (_searchLoading && results.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
     if (results.isEmpty) {
       return Center(
         child: Column(
