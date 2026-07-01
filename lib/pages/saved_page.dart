@@ -6,6 +6,7 @@ import '../config.dart';
 import '../services/api_client.dart';
 import '../theme/colors.dart';
 import '../stores/favorite_store.dart';
+import '../utils/favorite_action.dart';
 import '../stores/menu_store.dart';
 import '../widgets/background_decorations.dart';
 import 'recipe_detail_page.dart';
@@ -553,7 +554,8 @@ class _SavedRecipeCard extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    onPressed: () => favoriteStore.toggle(recipe.id),
+                    onPressed: () => toggleFavoriteWithConfirm(
+                        context, favoriteStore, recipe.id, name: recipe.name),
                     icon: const Icon(
                       Icons.favorite,
                       color: AppColors.primary,

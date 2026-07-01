@@ -6,6 +6,7 @@ import '../services/recipe_service.dart';
 import '../stores/favorite_store.dart';
 import '../stores/menu_store.dart';
 import '../models/recipe.dart';
+import '../utils/favorite_action.dart';
 import '../widgets/background_decorations.dart';
 
 // 波浪形状裁剪器 - 更多波浪
@@ -250,7 +251,12 @@ class _RecipeDetailPageState extends State<RecipeDetailPage> {
                                     const SizedBox(width: 12),
                                     // 收藏按钮 - 粉色圆形
                                     GestureDetector(
-                                      onTap: () => favoriteStore.toggle(widget.recipeId),
+                                      onTap: () => toggleFavoriteWithConfirm(
+                                        context,
+                                        favoriteStore,
+                                        widget.recipeId,
+                                        name: _recipe?.name,
+                                      ),
                                       child: Container(
                                         width: 48,
                                         height: 48,
