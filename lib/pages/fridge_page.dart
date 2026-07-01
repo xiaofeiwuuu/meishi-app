@@ -1,8 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import '../theme/colors.dart';
 import '../widgets/background_decorations.dart';
+import '../services/api_client.dart';
 import 'fridge_result_page.dart';
 
 class IngredientCategory {
@@ -27,8 +26,6 @@ class FridgePage extends StatefulWidget {
 }
 
 class _FridgePageState extends State<FridgePage> {
-  static const String _baseUrl = 'https://cdn.jsdelivr.net/gh/xiaofeiwuuu/recipe@main';
-
   final TextEditingController _controller = TextEditingController();
   final List<String> _selectedIngredients = [];
   List<IngredientCategory> _categories = [];
@@ -116,30 +113,15 @@ class _FridgePageState extends State<FridgePage> {
 
   Future<void> _loadIngredients() async {
     try {
-      final dio = Dio();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-
-      // 并行加载预设分类和完整食材索引
-      final responses = await Future.wait([
-        dio.get('$_baseUrl/ingredients.json?t=$timestamp'),
-        dio.get('$_baseUrl/ingredient-index.json?t=$timestamp'),
-      ]);
-
-      // 解析预设分类
-      final catData = responses[0].data is String
-          ? json.decode(responses[0].data)
-          : responses[0].data;
-      final categories = (catData['categories'] as List)
-          .map((c) => IngredientCategory.fromJson(c))
+      // /app/ingredients 返回按分类分组的食材 [{category, items}]
+      final data = await ApiClient.instance.get('/app/ingredients');
+      final categories = (data as List)
+          .map((c) => IngredientCategory(
+                name: c['category'] ?? '',
+                items: List<String>.from(c['items'] ?? []),
+              ))
           .toList();
-
-      // 解析完整食材列表（从索引中提取所有食材名）
-      final indexData = responses[1].data is String
-          ? json.decode(responses[1].data)
-          : responses[1].data;
-      final allIngredients = (indexData['index'] as Map<String, dynamic>)
-          .keys
-          .toList();
+      final allIngredients = categories.expand((c) => c.items).toList();
 
       if (mounted) {
         setState(() {

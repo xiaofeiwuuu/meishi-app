@@ -7,9 +7,11 @@ import 'pages/menu_page.dart';
 import 'pages/saved_page.dart';
 import 'pages/history_page.dart';
 import 'services/recipe_service.dart';
+import 'services/auth_service.dart';
 import 'stores/menu_store.dart';
 import 'stores/favorite_store.dart';
 import 'stores/share_history_store.dart';
+import 'pages/auth/login_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +31,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => AuthService()..init()),
         ChangeNotifierProvider(create: (_) => RecipeService()),
         ChangeNotifierProvider(create: (_) => MenuStore()),
         ChangeNotifierProvider(create: (_) => FavoriteStore()),
@@ -50,9 +53,26 @@ class MyApp extends StatelessWidget {
           ),
           useMaterial3: true,
         ),
-        home: const MainPage(),
+        home: const AuthGate(),
       ),
     );
+  }
+}
+
+/// 启动鉴权门:根据登录态决定进主页还是登录页
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final status = context.watch<AuthService>().status;
+    switch (status) {
+      case AuthStatus.unknown:
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      case AuthStatus.authenticated:
+        return const MainPage();
+      case AuthStatus.unauthenticated:
+        return const LoginPage();
+    }
   }
 }
 

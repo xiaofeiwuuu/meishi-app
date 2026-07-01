@@ -1,10 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
 import '../theme/colors.dart';
 import '../widgets/food_card.dart';
 import '../stores/menu_store.dart';
+import '../services/api_client.dart';
 import 'recipe_detail_page.dart';
 import '../utils/responsive.dart';
 
@@ -56,10 +55,6 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
   // 可用的分类（从结果中提取）
   List<MapEntry<String, String>> _availableCategories = [];
 
-  // 缓存
-  static Map<String, List<String>>? _ingredientIndex;
-  static Map<String, RecipeSummary>? _recipeSummaries;
-
   // 滚动控制
   final ScrollController _scrollController = ScrollController();
   bool _showBackToTop = false;
@@ -93,117 +88,68 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
     super.dispose();
   }
 
+  // 服务端按食材反查(替代前端下载大索引)
   Future<void> _loadAndSearch() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
-
     try {
-      final dio = Dio();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final data = await ApiClient.instance.post('/app/fridge/match', data: {
+        'ingredients': widget.ingredients,
+        'mode': _matchAll ? 'all' : 'any',
+        'pageSize': 50,
+      });
+      final items = (data['items'] as List?) ?? [];
+      final results = items
+          .map((e) => RecipeSummary(
+                id: e['id']?.toString() ?? '',
+                name: e['name'] ?? '',
+                cover: e['cover'] ?? '',
+                cat: e['categoryId'] ?? '',
+                catName: e['categoryId'] ?? '',
+              ))
+          .toList();
 
-      // 加载索引（如果未缓存）
-      if (_ingredientIndex == null) {
-        final indexResponse = await dio.get('$_baseUrl/ingredient-index.json?t=$timestamp');
-        final indexData = indexResponse.data is String
-            ? json.decode(indexResponse.data)
-            : indexResponse.data;
-        _ingredientIndex = {};
-        (indexData['index'] as Map<String, dynamic>).forEach((key, value) {
-          _ingredientIndex![key] = List<String>.from(value);
-        });
-      }
-
-      // 加载摘要（如果未缓存）
-      if (_recipeSummaries == null) {
-        final summaryResponse = await dio.get('$_baseUrl/recipe-summaries.json?t=$timestamp');
-        final summaryData = summaryResponse.data is String
-            ? json.decode(summaryResponse.data)
-            : summaryResponse.data;
-        _recipeSummaries = {};
-        for (final item in summaryData['recipes']) {
-          final summary = RecipeSummary.fromJson(item);
-          _recipeSummaries![summary.id] = summary;
+      // 结果分类统计
+      final categoryCount = <String, int>{};
+      for (final r in results) {
+        if (r.cat.isNotEmpty) {
+          categoryCount[r.cat] = (categoryCount[r.cat] ?? 0) + 1;
         }
       }
+      const categoryNames = {
+        'recai': '热菜',
+        'liangcai': '凉菜',
+        'tanggeng': '汤羹',
+        'zhushi': '主食',
+        'xiaochi': '小吃',
+        'jiachang': '家常菜',
+        'jiangpaoyancai': '泡酱腌菜',
+      };
+      final categories = <MapEntry<String, String>>[];
+      categoryCount.forEach((cat, count) {
+        categories.add(MapEntry(cat, '${categoryNames[cat] ?? cat}($count)'));
+      });
+      categories.sort((a, b) =>
+          (categoryCount[b.key] ?? 0).compareTo(categoryCount[a.key] ?? 0));
 
-      _performSearch();
+      if (mounted) {
+        setState(() {
+          _allResults = results;
+          _availableCategories = categories;
+          _isLoading = false;
+        });
+        _applyFilter();
+      }
     } catch (e) {
-      debugPrint('Failed to load index: $e');
+      debugPrint('Failed to match: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
           _error = '加载失败，请检查网络';
         });
       }
-    }
-  }
-
-  void _performSearch() {
-    if (_ingredientIndex == null || _recipeSummaries == null) return;
-
-    final matchedIds = <String, int>{};
-
-    for (final ingredient in widget.ingredients) {
-      final recipeIds = _ingredientIndex![ingredient] ?? [];
-      for (final id in recipeIds) {
-        matchedIds[id] = (matchedIds[id] ?? 0) + 1;
-      }
-    }
-
-    List<String> resultIds;
-    if (_matchAll) {
-      resultIds = matchedIds.entries
-          .where((e) => e.value == widget.ingredients.length)
-          .map((e) => e.key)
-          .toList();
-    } else {
-      final entries = matchedIds.entries.toList();
-      entries.sort((a, b) => b.value.compareTo(a.value));
-      resultIds = entries.map((e) => e.key).toList();
-    }
-
-    final results = <RecipeSummary>[];
-    final categoryCount = <String, int>{};
-
-    for (final id in resultIds) {
-      final summary = _recipeSummaries![id];
-      if (summary != null) {
-        results.add(summary);
-        if (summary.cat.isNotEmpty) {
-          categoryCount[summary.cat] = (categoryCount[summary.cat] ?? 0) + 1;
-        }
-      }
-    }
-
-    // 提取可用分类
-    final categories = <MapEntry<String, String>>[];
-    final categoryNames = {
-      'recai': '热菜',
-      'liangcai': '凉菜',
-      'tanggeng': '汤羹',
-      'zhushi': '主食',
-      'xiaochi': '小吃',
-    };
-    categoryCount.forEach((cat, count) {
-      final name = categoryNames[cat] ?? cat;
-      categories.add(MapEntry(cat, '$name($count)'));
-    });
-    // 按数量排序
-    categories.sort((a, b) {
-      final countA = categoryCount[a.key] ?? 0;
-      final countB = categoryCount[b.key] ?? 0;
-      return countB.compareTo(countA);
-    });
-
-    if (mounted) {
-      setState(() {
-        _allResults = results;
-        _availableCategories = categories;
-        _isLoading = false;
-      });
-      _applyFilter();
     }
   }
 
@@ -224,7 +170,7 @@ class _FridgeResultPageState extends State<FridgeResultPage> {
       _matchAll = !_matchAll;
       _selectedCategory = '';
     });
-    _performSearch();
+    _loadAndSearch(); // 切换模式需重新向服务端查询
   }
 
   void _selectCategory(String cat) {

@@ -1,15 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:dio/dio.dart';
 import '../models/recipe.dart';
+import 'api_client.dart';
 
+/// 菜谱数据服务 —— 已迁移到自有后端 /app/* 接口(原 jsDelivr 静态文件下线)
 class RecipeService extends ChangeNotifier {
-  static const String baseUrl = 'https://cdn.jsdelivr.net/gh/xiaofeiwuuu/recipe@main';
-
-  final Dio _dio = Dio(BaseOptions(
-    baseUrl: baseUrl,
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 10),
-  ));
+  final _api = ApiClient.instance;
 
   List<RecipeCategory> _categories = [];
   final Map<String, Recipe> _recipeCache = {};
@@ -22,7 +17,6 @@ class RecipeService extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  // 清除所有缓存
   void clearCache() {
     _categories.clear();
     _recipeCache.clear();
@@ -32,49 +26,31 @@ class RecipeService extends ChangeNotifier {
 
   Future<void> loadCategories({bool forceRefresh = false}) async {
     if (_categories.isNotEmpty && !forceRefresh) return;
-
     _isLoading = true;
     _error = null;
     notifyListeners();
-
     try {
-      // 添加时间戳绕过 CDN 缓存
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final url = '/index/categories.json?t=$timestamp';
-      debugPrint('请求分类: $url');
-      final response = await _dio.get(url);
-      debugPrint('响应数据: ${response.data}');
-      final data = response.data;
-      if (data['categories'] != null) {
-        _categories = (data['categories'] as List)
-            .map((e) => RecipeCategory.fromJson(e))
-            .toList();
-      }
-      debugPrint('>>> 加载分类成功: ${_categories.length} 个');
-      for (var c in _categories) {
-        debugPrint('  - ${c.id}: ${c.name}');
-      }
+      final data = await _api.get('/app/categories');
+      _categories = (data as List)
+          .map((e) => RecipeCategory(
+                id: e['id'] ?? '',
+                name: e['name'] ?? '',
+                parent: e['parent'],
+                total: e['count'] ?? 0,
+              ))
+          .toList();
     } catch (e) {
       _error = '加载分类失败: $e';
-      debugPrint('>>> 加载分类失败: $e');
-      // 使用测试数据
-      _categories = [
-        RecipeCategory(id: 'recai', name: '热菜', total: 5),
-      ];
     }
-
     _isLoading = false;
     notifyListeners();
   }
 
   Future<Recipe?> getRecipe(String id) async {
-    if (_recipeCache.containsKey(id)) {
-      return _recipeCache[id];
-    }
-
+    if (_recipeCache.containsKey(id)) return _recipeCache[id];
     try {
-      final response = await _dio.get('/recipes/$id.json');
-      final recipe = Recipe.fromJson(response.data);
+      final data = await _api.get('/app/recipes/$id');
+      final recipe = Recipe.fromJson(Map<String, dynamic>.from(data));
       _recipeCache[id] = recipe;
       return recipe;
     } catch (e) {
@@ -92,85 +68,60 @@ class RecipeService extends ChangeNotifier {
     if (_categoryRecipesCache.containsKey(cacheKey) && !forceRefresh) {
       return _categoryRecipesCache[cacheKey]!;
     }
-
     try {
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final response = await _dio.get('/pages/$categoryId/$page.json?t=$timestamp');
-      final data = response.data;
-      final recipes = (data['items'] as List?)
-              ?.map((e) => RecipeSummary.fromJson(e))
-              .toList() ??
-          [];
-      _categoryRecipesCache[cacheKey] = recipes;
-      return recipes;
+      final data = await _api.get('/app/recipes',
+          query: {'category': categoryId, 'page': page, 'pageSize': 20});
+      final list = _parseSummaries(data['items']);
+      _categoryRecipesCache[cacheKey] = list;
+      return list;
     } catch (e) {
       debugPrint('加载菜谱列表失败: $e');
       return [];
     }
   }
 
-  Future<List<RecipeSummary>> getPopularRecipes({int limit = 4}) async {
-    // 从第一个分类获取热门菜谱
-    if (_categories.isEmpty) {
-      await loadCategories();
+  /// 服务端搜索(替代前端全量下载)
+  Future<List<RecipeSummary>> searchRecipes(String keyword,
+      {int page = 1, int pageSize = 20}) async {
+    if (keyword.trim().isEmpty) return [];
+    try {
+      final data = await _api.get('/app/recipes',
+          query: {'keyword': keyword.trim(), 'page': page, 'pageSize': pageSize});
+      return _parseSummaries(data['items']);
+    } catch (e) {
+      debugPrint('搜索失败: $e');
+      return [];
     }
-    if (_categories.isNotEmpty) {
-      final recipes = await getRecipesByCategory(_categories.first.id);
-      return recipes.take(limit).toList();
-    }
-    return [];
   }
 
-  Future<List<RecipeSummary>> getRandomRecipes({int limit = 4}) async {
-    // 从所有分类中随机获取菜谱
-    if (_categories.isEmpty) {
-      await loadCategories();
+  Future<List<RecipeSummary>> getPopularRecipes({int limit = 8}) async {
+    try {
+      final data = await _api.get('/app/recipes', query: {'pageSize': limit});
+      return _parseSummaries(data['items']);
+    } catch (_) {
+      return [];
     }
-    if (_categories.isEmpty) return [];
-
-    final allRecipes = <RecipeSummary>[];
-
-    // 从每个分类获取菜谱
-    for (final cat in _categories) {
-      final recipes = await getRecipesByCategory(cat.id);
-      allRecipes.addAll(recipes);
-    }
-
-    if (allRecipes.isEmpty) return [];
-
-    // 随机打乱并取前 limit 个
-    allRecipes.shuffle();
-    return allRecipes.take(limit).toList();
   }
 
-  List<String> getAllIngredients() {
-    final Set<String> ingredients = {};
-    for (final recipe in _recipeCache.values) {
-      for (final ing in recipe.ingredients.all) {
-        if (ing.name.isNotEmpty) {
-          ingredients.add(ing.name);
-        }
-      }
-    }
-    return ingredients.toList()..sort();
+  /// 随机推荐:随机挑一个分类取一页打乱
+  Future<List<RecipeSummary>> getRandomRecipes({int limit = 8}) async {
+    if (_categories.isEmpty) await loadCategories();
+    if (_categories.isEmpty) return getPopularRecipes(limit: limit);
+    final cat = (_categories.toList()..shuffle()).first;
+    final list = await getRecipesByCategory(cat.id, forceRefresh: true);
+    list.shuffle();
+    return list.take(limit).toList();
   }
 
-  List<Recipe> findRecipesByIngredients(List<String> ingredients) {
-    if (ingredients.isEmpty) return [];
-
-    final results = <MapEntry<Recipe, int>>[];
-
-    for (final recipe in _recipeCache.values) {
-      final recipeIngredients =
-          recipe.ingredients.all.map((e) => e.name).toSet();
-      final matchCount =
-          ingredients.where((i) => recipeIngredients.contains(i)).length;
-      if (matchCount > 0) {
-        results.add(MapEntry(recipe, matchCount));
-      }
-    }
-
-    results.sort((a, b) => b.value.compareTo(a.value));
-    return results.map((e) => e.key).toList();
+  List<RecipeSummary> _parseSummaries(dynamic items) {
+    return ((items as List?) ?? [])
+        .map((e) => RecipeSummary(
+              id: e['id']?.toString() ?? '',
+              name: e['name'] ?? '',
+              cover: e['cover'] ?? '',
+              author: e['author'] ?? '',
+              category: e['categoryId'],
+            ))
+        .toList();
   }
 }

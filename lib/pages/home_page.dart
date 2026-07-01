@@ -8,6 +8,7 @@ import '../services/recipe_service.dart';
 import '../stores/menu_store.dart';
 import '../models/recipe.dart';
 import 'recipe_detail_page.dart';
+import 'profile_page.dart';
 import 'search_page.dart';
 import 'categories_page.dart';
 import 'category_recipes_page.dart';
@@ -94,23 +95,40 @@ class _HomePageState extends State<HomePage> {
               // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      '今天吃什么呀～ 🐱',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '今天吃什么呀～ 🐱',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            "一起来发现好吃的吧！🌸",
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    SizedBox(height: 4),
-                    Text(
-                      "一起来发现好吃的吧！🌸",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textMuted,
+                    GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ProfilePage()),
+                      ),
+                      child: const CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Color(0xFFFFD93D),
+                        child: Icon(Icons.person, color: Color(0xFF5D4E37)),
                       ),
                     ),
                   ],
