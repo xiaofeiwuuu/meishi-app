@@ -5,7 +5,7 @@ import 'pages/home_page.dart';
 import 'pages/fridge_page.dart';
 import 'pages/menu_page.dart';
 import 'pages/saved_page.dart';
-import 'pages/history_page.dart';
+import 'pages/profile_page.dart';
 import 'services/recipe_service.dart';
 import 'services/auth_service.dart';
 import 'stores/menu_store.dart';
@@ -92,7 +92,7 @@ class _MainPageState extends State<MainPage> {
     const FridgePage(),
     const MenuPage(),
     const SavedPage(),
-    const HistoryPage(),
+    const ProfilePage(),
   ];
 
   // Tab 配置
@@ -206,7 +206,7 @@ class _MainPageState extends State<MainPage> {
                               _buildNavItem(1, Icons.kitchen_rounded, 'Fridge'),
                               SizedBox(width: _centerGap),
                               _buildNavItem(3, Icons.favorite_rounded, 'Saved'),
-                              _buildNavItem(4, Icons.history_rounded, 'History'),
+                              _buildNavItem(4, Icons.person_rounded, '我的'),
                             ],
                           ),
                         ],

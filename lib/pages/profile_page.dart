@@ -5,6 +5,7 @@ import 'family/family_page.dart';
 import 'family/meal_plan_page.dart';
 import 'family/shopping_list_page.dart';
 import 'meal_record_page.dart';
+import 'history_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -16,6 +17,7 @@ class ProfilePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
       body: ListView(
+        padding: const EdgeInsets.only(bottom: 110),
         children: [
           const SizedBox(height: 16),
           Center(
@@ -44,6 +46,7 @@ class ProfilePage extends StatelessWidget {
           _entry(context, Icons.restaurant_menu, '餐计划', const MealPlanPage()),
           _entry(context, Icons.shopping_cart, '购物清单', const ShoppingListPage()),
           _entry(context, Icons.event_note, '饮食记录', const MealRecordPage()),
+          _entry(context, Icons.history_rounded, '历史记录', const HistoryPage()),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
@@ -62,7 +65,10 @@ class ProfilePage extends StatelessWidget {
               );
               if (ok == true && context.mounted) {
                 await context.read<AuthService>().logout();
-                if (context.mounted) Navigator.pop(context); // 关闭"我的",AuthGate 切登录页
+                // 作为 tab 时无处可 pop;push 进来时才 pop。登出后 AuthGate 会自动切登录页
+                if (context.mounted && Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                }
               }
             },
           ),

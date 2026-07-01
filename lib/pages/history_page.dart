@@ -135,7 +135,7 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
       backgroundColor: AppColors.background,
       body: BackgroundDecorations(
         variant: 7,
-        hasTabBar: true,
+        hasTabBar: false,
         child: SafeArea(
           child: Column(
             children: [
@@ -145,13 +145,26 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    '历史记录',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
+                  Row(
+                    children: [
+                      if (Navigator.canPop(context))
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: const Icon(Icons.arrow_back_ios_new,
+                                size: 20, color: AppColors.textPrimary),
+                          ),
+                        ),
+                      const Text(
+                        '历史记录',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
                   ),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
