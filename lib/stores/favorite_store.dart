@@ -1,113 +1,90 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../services/api_client.dart';
 
+/// 收藏(云端同步,登录后从后端加载;替代原本地 SharedPreferences)
 class FavoriteStore extends ChangeNotifier {
-  static const String _storageKey = 'favorite_ids';
-
   final Set<String> _favoriteIds = {};
-  bool _isLoaded = false;
 
   Set<String> get favoriteIds => _favoriteIds;
-
-  FavoriteStore() {
-    _loadFromStorage();
-  }
-
-  Future<void> _loadFromStorage() async {
-    if (_isLoaded) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonStr = prefs.getString(_storageKey);
-      if (jsonStr != null) {
-        final List<dynamic> list = json.decode(jsonStr);
-        _favoriteIds.clear();
-        _favoriteIds.addAll(list.cast<String>());
-        notifyListeners();
-      }
-    } catch (e) {
-      debugPrint('Failed to load favorites: $e');
-    }
-    _isLoaded = true;
-  }
-
-  Future<void> _saveToStorage() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonStr = json.encode(_favoriteIds.toList());
-      await prefs.setString(_storageKey, jsonStr);
-    } catch (e) {
-      debugPrint('Failed to save favorites: $e');
-    }
-  }
-
   bool isFavorite(String id) => _favoriteIds.contains(id);
 
-  void toggle(String id) {
-    if (_favoriteIds.contains(id)) {
+  /// 登录后加载云端收藏 id 列表
+  Future<void> load() async {
+    try {
+      final data = await ApiClient.instance.get('/app/favorites/ids');
+      _favoriteIds
+        ..clear()
+        ..addAll(List<String>.from(data ?? []));
+      notifyListeners();
+    } catch (e) {
+      debugPrint('加载收藏失败: $e');
+    }
+  }
+
+  /// 退出登录清空本地(不动云端)
+  void clearLocal() {
+    _favoriteIds.clear();
+    notifyListeners();
+  }
+
+  /// 收藏/取消:乐观更新 + 同步后端,失败回滚
+  Future<void> toggle(String id) async {
+    final wasFav = _favoriteIds.contains(id);
+    if (wasFav) {
       _favoriteIds.remove(id);
     } else {
       _favoriteIds.add(id);
     }
     notifyListeners();
-    _saveToStorage();
-  }
-
-  void add(String id) {
-    _favoriteIds.add(id);
-    notifyListeners();
-    _saveToStorage();
-  }
-
-  void remove(String id) {
-    _favoriteIds.remove(id);
-    notifyListeners();
-    _saveToStorage();
-  }
-
-  void clear() {
-    _favoriteIds.clear();
-    notifyListeners();
-    _saveToStorage();
-  }
-
-  // 导出数据
-  String exportData() {
-    return json.encode({
-      'type': 'favorites',
-      'version': 1,
-      'data': _favoriteIds.toList(),
-      'exportedAt': DateTime.now().toIso8601String(),
-    });
-  }
-
-  // 导入数据
-  Future<int> importData(String jsonStr, {bool merge = true}) async {
     try {
-      final Map<String, dynamic> imported = json.decode(jsonStr);
-      if (imported['type'] != 'favorites') {
-        throw Exception('Invalid data type');
+      if (wasFav) {
+        await ApiClient.instance.delete('/app/favorites/$id');
+      } else {
+        await ApiClient.instance.post('/app/favorites/$id');
       }
-      final List<dynamic> dataList = imported['data'];
-
-      if (!merge) {
-        _favoriteIds.clear();
+    } catch (e) {
+      // 回滚
+      if (wasFav) {
+        _favoriteIds.add(id);
+      } else {
+        _favoriteIds.remove(id);
       }
+      notifyListeners();
+      debugPrint('收藏同步失败: $e');
+    }
+  }
 
-      int addedCount = 0;
-      for (final id in dataList) {
-        if (!_favoriteIds.contains(id)) {
-          _favoriteIds.add(id);
-          addedCount++;
+  // 导出(备份用)
+  String exportData() => json.encode({
+        'type': 'favorites',
+        'version': 1,
+        'data': _favoriteIds.toList(),
+        'exportedAt': DateTime.now().toIso8601String(),
+      });
+
+  // 导入:逐个同步到云端
+  Future<int> importData(String jsonStr, {bool merge = true}) async {
+    final Map<String, dynamic> imported = json.decode(jsonStr);
+    if (imported['type'] != 'favorites') {
+      throw Exception('Invalid data type');
+    }
+    final List<dynamic> dataList = imported['data'];
+    if (!merge) _favoriteIds.clear();
+    int added = 0;
+    for (final raw in dataList) {
+      final id = raw.toString();
+      if (!_favoriteIds.contains(id)) {
+        _favoriteIds.add(id);
+        added++;
+        try {
+          await ApiClient.instance.post('/app/favorites/$id');
+        } catch (_) {
+          // 单条失败忽略
         }
       }
-
-      notifyListeners();
-      await _saveToStorage();
-      return addedCount;
-    } catch (e) {
-      debugPrint('Failed to import favorites: $e');
-      rethrow;
     }
+    notifyListeners();
+    return added;
   }
 }

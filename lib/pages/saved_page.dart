@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:dio/dio.dart';
+import '../config.dart';
+import '../services/api_client.dart';
 import '../theme/colors.dart';
 import '../stores/favorite_store.dart';
 import '../stores/menu_store.dart';
@@ -44,9 +44,6 @@ class SavedPage extends StatefulWidget {
 }
 
 class _SavedPageState extends State<SavedPage> {
-  static const String _baseUrl = 'https://cdn.jsdelivr.net/gh/xiaofeiwuuu/recipe@main';
-  static const String _rawUrl = 'https://raw.githubusercontent.com/xiaofeiwuuu/recipe/main';
-
   Map<String, RecipeSummaryItem> _recipeMap = {};
   bool _isLoading = true;
   String _selectedCategory = '';
@@ -59,10 +56,21 @@ class _SavedPageState extends State<SavedPage> {
     'xiaochi': '小吃',
   };
 
+  FavoriteStore? _favStore;
+
   @override
   void initState() {
     super.initState();
     _loadRecipeSummaries();
+    // 在别处收藏后回到本页能刷新(本页常驻,initState 只跑一次)
+    _favStore = context.read<FavoriteStore>();
+    _favStore!.addListener(_loadRecipeSummaries);
+  }
+
+  @override
+  void dispose() {
+    _favStore?.removeListener(_loadRecipeSummaries);
+    super.dispose();
   }
 
   void _handleMenuAction(BuildContext context, String action, FavoriteStore favoriteStore) {
@@ -160,22 +168,21 @@ class _SavedPageState extends State<SavedPage> {
     );
   }
 
+  // 从后端拉"我收藏的菜谱"(替代原来下载 jsDelivr 全量索引)
   Future<void> _loadRecipeSummaries() async {
     try {
-      final dio = Dio();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final response = await dio.get('$_rawUrl/recipe-summaries.json?t=$timestamp');
-
-      final data = response.data is String
-          ? json.decode(response.data)
-          : response.data;
-
+      final data = await ApiClient.instance.get('/app/favorites');
       final map = <String, RecipeSummaryItem>{};
-      for (final item in data['recipes']) {
-        final recipe = RecipeSummaryItem.fromJson(item);
-        map[recipe.id] = recipe;
+      for (final item in (data as List? ?? [])) {
+        final id = item['id']?.toString() ?? '';
+        map[id] = RecipeSummaryItem(
+          id: id,
+          name: item['name'] ?? '',
+          cover: item['cover'] ?? '', // 后端已返回完整 URL
+          cat: item['categoryId'] ?? '',
+          catName: '',
+        );
       }
-
       if (mounted) {
         setState(() {
           _recipeMap = map;
@@ -183,10 +190,8 @@ class _SavedPageState extends State<SavedPage> {
         });
       }
     } catch (e) {
-      debugPrint('Failed to load recipe summaries: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      debugPrint('加载收藏失败: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -404,7 +409,6 @@ class _SavedPageState extends State<SavedPage> {
                                       final recipe = filteredRecipes[index];
                                       return _SavedRecipeCard(
                                         recipe: recipe,
-                                        baseUrl: _baseUrl,
                                         menuStore: menuStore,
                                         favoriteStore: favoriteStore,
                                       );
@@ -426,7 +430,6 @@ class _SavedPageState extends State<SavedPage> {
                                     final recipe = filteredRecipes[index];
                                     return _SavedRecipeCard(
                                       recipe: recipe,
-                                      baseUrl: _baseUrl,
                                       menuStore: menuStore,
                                       favoriteStore: favoriteStore,
                                     );
@@ -445,20 +448,18 @@ class _SavedPageState extends State<SavedPage> {
 
 class _SavedRecipeCard extends StatelessWidget {
   final RecipeSummaryItem recipe;
-  final String baseUrl;
   final MenuStore menuStore;
   final FavoriteStore favoriteStore;
 
   const _SavedRecipeCard({
     required this.recipe,
-    required this.baseUrl,
     required this.menuStore,
     required this.favoriteStore,
   });
 
   @override
   Widget build(BuildContext context) {
-    final coverUrl = recipe.cover.isNotEmpty ? '$baseUrl/${recipe.cover}' : '';
+    final coverUrl = AppConfig.coverUrl(recipe.cover);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),

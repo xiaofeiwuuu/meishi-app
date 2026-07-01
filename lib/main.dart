@@ -95,6 +95,15 @@ class _MainPageState extends State<MainPage> {
     const ProfilePage(),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    // 已登录进主页,加载云端收藏
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<FavoriteStore>().load();
+    });
+  }
+
   // Tab 配置
   static const _tabWidth = 56.0;
   static const _maxBarWidth = 380.0; // 最大宽度限制
