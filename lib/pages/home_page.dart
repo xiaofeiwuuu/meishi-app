@@ -8,7 +8,6 @@ import '../services/recipe_service.dart';
 import '../stores/menu_store.dart';
 import '../models/recipe.dart';
 import 'recipe_detail_page.dart';
-import 'profile_page.dart';
 import 'search_page.dart';
 import 'categories_page.dart';
 import 'category_recipes_page.dart';
@@ -118,17 +117,6 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ProfilePage()),
-                      ),
-                      child: const CircleAvatar(
-                        radius: 22,
-                        backgroundColor: Color(0xFFFFD93D),
-                        child: Icon(Icons.person, color: Color(0xFF5D4E37)),
                       ),
                     ),
                   ],
