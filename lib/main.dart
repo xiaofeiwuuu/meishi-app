@@ -98,9 +98,12 @@ class _MainPageState extends State<MainPage> {
   @override
   void initState() {
     super.initState();
-    // 已登录进主页,加载云端收藏
+    // 已登录进主页,加载云端收藏 / 今日菜单 / 分享历史
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<FavoriteStore>().load();
+      if (!mounted) return;
+      context.read<FavoriteStore>().load();
+      context.read<MenuStore>().load();
+      context.read<ShareHistoryStore>().load();
     });
   }
 

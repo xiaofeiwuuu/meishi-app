@@ -1,113 +1,106 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../services/api_client.dart';
 
+/// 今日菜单(云端同步,登录后从后端加载;替代原本地 SharedPreferences)
 class MenuStore extends ChangeNotifier {
-  static const String _storageKey = 'menu_ids';
-
   final Set<String> _menuIds = {};
-  bool _isLoaded = false;
 
   Set<String> get menuIds => _menuIds;
-
-  MenuStore() {
-    _loadFromStorage();
-  }
-
-  Future<void> _loadFromStorage() async {
-    if (_isLoaded) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonStr = prefs.getString(_storageKey);
-      if (jsonStr != null) {
-        final List<dynamic> list = json.decode(jsonStr);
-        _menuIds.clear();
-        _menuIds.addAll(list.cast<String>());
-        notifyListeners();
-      }
-    } catch (e) {
-      debugPrint('Failed to load menu: $e');
-    }
-    _isLoaded = true;
-  }
-
-  Future<void> _saveToStorage() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonStr = json.encode(_menuIds.toList());
-      await prefs.setString(_storageKey, jsonStr);
-    } catch (e) {
-      debugPrint('Failed to save menu: $e');
-    }
-  }
-
   bool isInMenu(String id) => _menuIds.contains(id);
 
-  void toggle(String id) {
-    if (_menuIds.contains(id)) {
-      _menuIds.remove(id);
-    } else {
-      _menuIds.add(id);
+  Future<void> load() async {
+    try {
+      final data = await ApiClient.instance.get('/app/menu/ids');
+      _menuIds
+        ..clear()
+        ..addAll(List<String>.from(data ?? []));
+      notifyListeners();
+    } catch (e) {
+      debugPrint('加载今日菜单失败: $e');
     }
-    notifyListeners();
-    _saveToStorage();
   }
 
-  void add(String id) {
-    _menuIds.add(id);
-    notifyListeners();
-    _saveToStorage();
-  }
-
-  void remove(String id) {
-    _menuIds.remove(id);
-    notifyListeners();
-    _saveToStorage();
-  }
-
-  void clear() {
+  void clearLocal() {
     _menuIds.clear();
     notifyListeners();
-    _saveToStorage();
   }
 
-  // 导出数据
-  String exportData() {
-    return json.encode({
-      'type': 'menu',
-      'version': 1,
-      'data': _menuIds.toList(),
-      'exportedAt': DateTime.now().toIso8601String(),
-    });
-  }
-
-  // 导入数据
-  Future<int> importData(String jsonStr, {bool merge = true}) async {
-    try {
-      final Map<String, dynamic> imported = json.decode(jsonStr);
-      if (imported['type'] != 'menu') {
-        throw Exception('Invalid data type');
-      }
-      final List<dynamic> dataList = imported['data'];
-
-      if (!merge) {
-        _menuIds.clear();
-      }
-
-      int addedCount = 0;
-      for (final id in dataList) {
-        if (!_menuIds.contains(id)) {
-          _menuIds.add(id);
-          addedCount++;
-        }
-      }
-
-      notifyListeners();
-      await _saveToStorage();
-      return addedCount;
-    } catch (e) {
-      debugPrint('Failed to import menu: $e');
-      rethrow;
+  Future<void> toggle(String id) async {
+    if (_menuIds.contains(id)) {
+      await remove(id);
+    } else {
+      await add(id);
     }
+  }
+
+  Future<void> add(String id) async {
+    if (_menuIds.contains(id)) return;
+    _menuIds.add(id);
+    notifyListeners();
+    try {
+      await ApiClient.instance.post('/app/menu/$id');
+    } catch (e) {
+      _menuIds.remove(id);
+      notifyListeners();
+      debugPrint('加入今日菜单失败: $e');
+    }
+  }
+
+  Future<void> remove(String id) async {
+    if (!_menuIds.contains(id)) return;
+    _menuIds.remove(id);
+    notifyListeners();
+    try {
+      await ApiClient.instance.delete('/app/menu/$id');
+    } catch (e) {
+      _menuIds.add(id);
+      notifyListeners();
+      debugPrint('移除今日菜单失败: $e');
+    }
+  }
+
+  Future<void> clear() async {
+    final backup = Set<String>.from(_menuIds);
+    _menuIds.clear();
+    notifyListeners();
+    try {
+      await ApiClient.instance.delete('/app/menu');
+    } catch (e) {
+      _menuIds.addAll(backup);
+      notifyListeners();
+      debugPrint('清空今日菜单失败: $e');
+    }
+  }
+
+  // 导出(备份用)
+  String exportData() => json.encode({
+        'type': 'menu',
+        'version': 1,
+        'data': _menuIds.toList(),
+        'exportedAt': DateTime.now().toIso8601String(),
+      });
+
+  // 导入:逐个同步到云端
+  Future<int> importData(String jsonStr, {bool merge = true}) async {
+    final Map<String, dynamic> imported = json.decode(jsonStr);
+    if (imported['type'] != 'menu') {
+      throw Exception('Invalid data type');
+    }
+    final List<dynamic> dataList = imported['data'];
+    if (!merge) await clear();
+    int added = 0;
+    for (final raw in dataList) {
+      final id = raw.toString();
+      if (!_menuIds.contains(id)) {
+        _menuIds.add(id);
+        added++;
+        try {
+          await ApiClient.instance.post('/app/menu/$id');
+        } catch (_) {}
+      }
+    }
+    notifyListeners();
+    return added;
   }
 }
