@@ -97,7 +97,6 @@ class _MainPageState extends State<MainPage> {
 
   // Tab 配置
   static const _tabWidth = 56.0;
-  static const _centerGap = 70.0;
   static const _maxBarWidth = 380.0; // 最大宽度限制
 
   void _onTabTap(int index) {
@@ -107,24 +106,10 @@ class _MainPageState extends State<MainPage> {
     setState(() => _currentIndex = index);
   }
 
-  // 计算滑块位置
+  // 计算滑块位置(5 等分:槽位 i 中心 = barWidth*(2i+1)/10,滑块居中对齐)
   double _getSliderPosition(double barWidth) {
-    // 使用 _lastNonCenterIndex 保持滑块位置
     final index = _currentIndex == 2 ? _lastNonCenterIndex : _currentIndex;
-    final leftStart = (barWidth - _tabWidth * 4 - _centerGap) / 2;
-
-    switch (index) {
-      case 0:
-        return leftStart;
-      case 1:
-        return leftStart + _tabWidth;
-      case 3:
-        return leftStart + _tabWidth * 2 + _centerGap;
-      case 4:
-        return leftStart + _tabWidth * 3 + _centerGap;
-      default:
-        return leftStart;
-    }
+    return barWidth * (2 * index + 1) / 10 - _tabWidth / 2;
   }
 
   @override
@@ -156,8 +141,9 @@ class _MainPageState extends State<MainPage> {
                   clipBehavior: Clip.none,
                   alignment: Alignment.center,
                   children: [
-                    // 底部胶囊条
+                    // 底部胶囊条(填满整个可用宽度,配合 spaceAround 均分)
                     Container(
+                      width: barWidth,
                       height: 60,
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -200,11 +186,11 @@ class _MainPageState extends State<MainPage> {
                           ),
                           // Tab items
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
                               _buildNavItem(0, Icons.home_rounded, 'Home'),
                               _buildNavItem(1, Icons.kitchen_rounded, 'Fridge'),
-                              SizedBox(width: _centerGap),
+                              const SizedBox(width: _tabWidth), // 中间按钮占位
                               _buildNavItem(3, Icons.favorite_rounded, 'Saved'),
                               _buildNavItem(4, Icons.person_rounded, '我的'),
                             ],
