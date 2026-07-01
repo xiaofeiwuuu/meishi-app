@@ -84,14 +84,9 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
   }
 
   Future<void> _generate() async {
-    final now = DateTime.now();
-    final to = now.add(const Duration(days: 7));
-    String f(DateTime d) =>
-        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
     try {
-      final r = await ApiClient.instance
-          .post('/app/shopping-list/generate', data: {'from': f(now), 'to': f(to)});
-      _toast('已从餐计划生成 ${r['added']} 项');
+      final r = await ApiClient.instance.post('/app/shopping-list/generate');
+      _toast('已从今日菜单生成 ${r?['added'] ?? 0} 项');
       _load();
     } catch (e) {
       _toast(e.toString());
@@ -112,7 +107,7 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                 if (v == 'clear') _clearChecked();
               },
               itemBuilder: (_) => const [
-                PopupMenuItem(value: 'gen', child: Text('从餐计划生成')),
+                PopupMenuItem(value: 'gen', child: Text('从今日菜单生成')),
                 PopupMenuItem(value: 'clear', child: Text('清空已买')),
               ],
             ),
@@ -151,7 +146,7 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
     }
     if (_items.isEmpty) {
       return const Center(
-        child: Text('清单是空的,点右下角添加,或从餐计划生成',
+        child: Text('清单是空的,点右下角添加,或从今日菜单生成',
             style: TextStyle(color: AppColors.textMuted)),
       );
     }

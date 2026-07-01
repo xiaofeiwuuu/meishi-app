@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/colors.dart';
+import '../services/api_client.dart';
 import '../services/recipe_service.dart';
 import '../stores/menu_store.dart';
 import '../models/recipe.dart';
@@ -119,7 +120,10 @@ class MenuPage extends StatelessWidget {
               ),
             ),
 
-            // Content
+            // 家人想吃的(同家庭可见)
+            const _FamilyMenuSection(),
+
+            // Content(我的今日菜单)
             Expanded(
               child: menuIds.isEmpty
                   ? Center(
@@ -195,6 +199,106 @@ class MenuPage extends StatelessWidget {
           ],
         ),
       ),
+      ),
+    );
+  }
+}
+
+// 家人想吃的:显示同家庭其他成员的今日菜单
+class _FamilyMenuSection extends StatefulWidget {
+  const _FamilyMenuSection();
+
+  @override
+  State<_FamilyMenuSection> createState() => _FamilyMenuSectionState();
+}
+
+class _FamilyMenuSectionState extends State<_FamilyMenuSection> {
+  List<dynamic> _others = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await ApiClient.instance.get('/app/menu/family');
+      final all = (data as List?) ?? [];
+      final others = all
+          .where((m) => m['isMe'] != true && (m['items'] as List).isNotEmpty)
+          .toList();
+      if (mounted) setState(() => _others = others);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_others.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFFE4A0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.family_restroom, size: 16, color: AppColors.primary),
+              SizedBox(width: 4),
+              Text('家人想吃的',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ..._others.map((m) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${m['nickname'] ?? '家人'}:',
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.textSecondary)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: (m['items'] as List)
+                            .map<Widget>((it) => GestureDetector(
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => RecipeDetailPage(
+                                          recipeId: it['id'].toString()),
+                                    ),
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12)),
+                                    child: Text(it['name'] ?? '',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textPrimary)),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
       ),
     );
   }

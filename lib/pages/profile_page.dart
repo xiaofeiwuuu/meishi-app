@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import 'family/family_page.dart';
-import 'family/meal_plan_page.dart';
 import 'family/shopping_list_page.dart';
-import 'meal_record_page.dart';
 import 'history_page.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -43,9 +41,7 @@ class ProfilePage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           _entry(context, Icons.home_rounded, '我的家庭', const FamilyPage()),
-          _entry(context, Icons.restaurant_menu, '餐计划', const MealPlanPage()),
           _entry(context, Icons.shopping_cart, '购物清单', const ShoppingListPage()),
-          _entry(context, Icons.event_note, '饮食记录', const MealRecordPage()),
           _entry(context, Icons.history_rounded, '历史记录', const HistoryPage()),
           const Divider(),
           ListTile(
